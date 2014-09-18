@@ -684,6 +684,9 @@ __request_firmware(const struct firmware **firmware_p, const char *name,
 	struct firmware_priv *fw_priv;
 	int ret;
 
+	if (!name || name[0] == '\0')
+		return -EINVAL;
+
 	fw_priv = _request_firmware_prepare(firmware_p, name, device, true,
 					    false);
 	if (IS_ERR_OR_NULL(fw_priv))
@@ -728,6 +731,7 @@ request_firmware(const struct firmware **firmware_p, const char *name,
 	return __request_firmware(firmware_p, name, device, 0, 0);
 }
 
+<<<<<<< HEAD
 /**
  * request_firmware_direct: - send firmware request and wait for it
  * @name: name of firmware file
