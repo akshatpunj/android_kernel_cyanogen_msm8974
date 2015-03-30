@@ -5673,7 +5673,7 @@ static int l2cap_sig_amp(struct l2cap_conn *conn, struct l2cap_cmd_hdr *cmd,
 {
 	struct l2cap_amp_signal_work *amp_work;
 
-	amp_work = kzalloc(sizeof(*amp_work), GFP_ATOMIC);
+        amp_work = kzalloc(sizeof(*amp_work), GFP_ATOMIC);
 	if (!amp_work)
 		return -ENOMEM;
 
