@@ -481,8 +481,14 @@ static void xhci_single_step_completion(struct urb *urb)
 {
 	struct completion *done = urb->context;
 
-	complete(done);
-}
+	/* resume state is a xHCI internal state.
+	 * Do not report it to usb core, instead, pretend to be U3,
+	 * thus usb core knows it's not ready for transfer
+	 */
+	if (pls == XDEV_RESUME) {
+		*status |= USB_SS_PORT_LS_U3;
+		return;
+	}
 
 /*
  * Allocate a URB and initialize the various fields of it.
