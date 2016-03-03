@@ -900,7 +900,6 @@ static void dwc3_ep0_xfer_complete(struct dwc3 *dwc,
 		dev_vdbg(dwc->dev, "Status Phase\n");
 		dwc3_ep0_complete_status(dwc, event);
 		break;
-	
 	default:
 		WARN(true, "UNKNOWN ep0state %d\n", dwc->ep0state);
 	}
