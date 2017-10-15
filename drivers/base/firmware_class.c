@@ -731,7 +731,6 @@ request_firmware(const struct firmware **firmware_p, const char *name,
 	return __request_firmware(firmware_p, name, device, 0, 0);
 }
 
-<<<<<<< HEAD
 /**
  * request_firmware_direct: - send firmware request and wait for it
  * @name: name of firmware file

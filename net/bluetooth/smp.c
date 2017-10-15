@@ -329,7 +329,6 @@ static int tk_request(struct l2cap_conn *conn, u8 remote_oob, u8 auth,
 
 	/* Not Just Works/Confirm results in MITM Authentication */
 	if (method != JUST_CFM) {
-		set_bit(SMP_FLAG_MITM_AUTH, &smp->smp_flags);
 		if (hcon->pending_sec_level < BT_SECURITY_HIGH)
 			hcon->pending_sec_level = BT_SECURITY_HIGH;
 	}
