@@ -661,7 +661,7 @@ static int __dwc3_gadget_ep_enable(struct dwc3_ep *dep,
 		struct dwc3_trb	*trb_st_hw;
 		struct dwc3_trb	*trb_link;
 
-         	dep->desc = desc;
+         	dep->endpoint.desc = desc;
 		dep->comp_desc = comp_desc;
 		dep->type = usb_endpoint_type(desc);
 		dep->flags |= DWC3_EP_ENABLED;
@@ -3152,4 +3152,5 @@ void dwc3_gadget_exit(struct dwc3 *dwc)
 
 	device_unregister(&dwc->gadget.dev);
 }
+
 
