@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2013, 2015 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -460,6 +460,7 @@ static int camera_v4l2_fh_open(struct file *filep)
 {
 	struct msm_video_device *pvdev = video_drvdata(filep);
 	struct camera_v4l2_private *sp;
+	unsigned int stream_id;					
 
 	sp = kzalloc(sizeof(*sp), GFP_KERNEL);
 
@@ -467,11 +468,15 @@ static int camera_v4l2_fh_open(struct file *filep)
 		pr_err("%s : memory not available\n", __func__);
 		return -ENOMEM;
 	}
+
 	filep->private_data = &sp->fh;
 
 	/* stream_id = open id */
-	sp->stream_id = atomic_read(&pvdev->stream_cnt);
-
+	stream_id = atomic_read(&pvdev->opened);
+	sp->stream_id = find_first_zero_bit(
+		(const unsigned long *)&stream_id, MSM_CAMERA_STREAM_CNT_BITS);
+	pr_debug("%s: Found stream_id=%d\n", __func__, sp->stream_id);
+	
 	v4l2_fh_init(&sp->fh, pvdev->vdev);
 	v4l2_fh_add(&sp->fh);
 
@@ -513,9 +518,7 @@ static int camera_v4l2_vb2_q_init(struct file *filep)
 	q->io_modes = VB2_USERPTR;
 	q->io_flags = 0;
 	q->buf_struct_size = sizeof(struct msm_vb2_buffer);
-	vb2_queue_init(q);
-
-	return 0;
+	return vb2_queue_init(q);
 }
 
 static void camera_v4l2_vb2_q_release(struct file *filep)
@@ -531,6 +534,7 @@ static int camera_v4l2_open(struct file *filep)
 	int rc = 0;
 	struct v4l2_event event;
 	struct msm_video_device *pvdev = video_drvdata(filep);
+	unsigned int opn_idx, idx;					   
 	BUG_ON(!pvdev);
 
 	rc = camera_v4l2_fh_open(filep);
@@ -540,6 +544,9 @@ static int camera_v4l2_open(struct file *filep)
 				__func__, __LINE__, rc);
 		goto fh_open_fail;
 	}
+
+	opn_idx = atomic_read(&pvdev->opened);
+	idx = opn_idx;		   
 	/* every stream has a vb2 queue */
 	rc = camera_v4l2_vb2_q_init(filep);
 
@@ -548,8 +555,12 @@ static int camera_v4l2_open(struct file *filep)
 				__func__, __LINE__, rc);
 		goto vb2_q_fail;
 	}
+
 	if (!atomic_read(&pvdev->opened)) {
 		pm_stay_awake(&pvdev->vdev->dev);
+
+		/* Disable power collapse latency */
+		msm_pm_qos_update_request(CAMERA_DISABLE_PC_LATENCY);
 
 		/* create a new session when first opened */
 		rc = msm_create_session(pvdev->vdev->num, pvdev->vdev);
@@ -558,14 +569,18 @@ static int camera_v4l2_open(struct file *filep)
 					__func__, __LINE__, rc);
 			goto session_fail;
 		}
-		rc = msm_create_command_ack_q(pvdev->vdev->num, 0);
+		
 
+		rc = msm_create_command_ack_q(pvdev->vdev->num,
+			find_first_zero_bit((const unsigned long *)&opn_idx,
+				MSM_CAMERA_STREAM_CNT_BITS));
 		if (rc < 0) {
 			pr_err("%s : creation of command_ack queue failed\n",
 					__func__);
 			pr_err("%s : Line %d rc %d\n", __func__, __LINE__, rc);
 			goto command_ack_q_fail;
 		}
+
 		camera_pack_event(filep, MSM_CAMERA_NEW_SESSION, 0, -1, &event);
 		rc = msm_post_event(&event, MSM_POST_EVT_TIMEOUT);
 		if (rc < 0) {
@@ -574,21 +589,29 @@ static int camera_v4l2_open(struct file *filep)
 			pr_err("%s : Line %d rc %d\n", __func__, __LINE__, rc);
 			goto post_fail;
 		}
+
 		rc = camera_check_event_status(&event);
 		if (rc < 0) {
 			pr_err("%s : checking event status fails Line %d rc %d\n",
 					__func__, __LINE__, rc);
 			goto post_fail;
 		}
+	/* Enable power collapse latency */
+		msm_pm_qos_update_request(CAMERA_ENABLE_PC_LATENCY);
 	} else {
 		rc = msm_create_command_ack_q(pvdev->vdev->num,
 			atomic_read(&pvdev->stream_cnt));
+		find_first_zero_bit((const unsigned long *)&opn_idx,
+				MSM_CAMERA_STREAM_CNT_BITS));						 
 		if (rc < 0) {
 			pr_err("%s : creation of command_ack queue failed Line %d rc %d\n",
 					__func__, __LINE__, rc);
 			goto session_fail;
 		}
 	}
+	idx |= (1 << find_first_zero_bit((const unsigned long *)&opn_idx,
+				MSM_CAMERA_STREAM_CNT_BITS));
+	atomic_cmpxchg(&pvdev->opened, opn_idx, idx);
 
 	atomic_add(1, &pvdev->opened);
 	atomic_add(1, &pvdev->stream_cnt);
@@ -628,9 +651,14 @@ static int camera_v4l2_close(struct file *filep)
 	struct v4l2_event event;
 	struct msm_video_device *pvdev = video_drvdata(filep);
 	struct camera_v4l2_private *sp = fh_to_private(filep->private_data);
+	unsigned int opn_idx, mask;						
 	BUG_ON(!pvdev);
 
-	atomic_sub_return(1, &pvdev->opened);
+	opn_idx = atomic_read(&pvdev->opened);
+	pr_debug("%s: close stream_id=%d\n", __func__, sp->stream_id);
+	mask = (1 << sp->stream_id);
+	opn_idx &= ~mask;
+	atomic_set(&pvdev->opened, opn_idx);
 
 	if (atomic_read(&pvdev->opened) == 0) {
 
@@ -649,6 +677,7 @@ static int camera_v4l2_close(struct file *filep)
 		/* This should take care of both normal close
 		 * and application crashes */
 		msm_destroy_session(pvdev->vdev->num);
+
 		pm_relax(&pvdev->vdev->dev);
 		atomic_set(&pvdev->stream_cnt, 0);
 
