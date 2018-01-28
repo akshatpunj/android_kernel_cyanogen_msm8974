@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013, 2015 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,7 +29,6 @@ static void msm_led_torch_brightness_set(struct led_classdev *led_cdev,
 	led_trigger_event(torch_trigger, value);
 };
 
-#ifdef CONFIG_MACH_SHENQI_K9
 static struct led_classdev msm_torch_led[MAX_LED_TRIGGERS] = {
 	{
 		.name		= "torch-light0",
@@ -47,25 +46,14 @@ static struct led_classdev msm_torch_led[MAX_LED_TRIGGERS] = {
 		.brightness	= LED_OFF,
 	},
 };
-#else
-static struct led_classdev msm_torch_led = {
-	.name			= "torch-light",
-	.brightness_set	= msm_led_torch_brightness_set,
-	.brightness		= LED_OFF,
-};
-#endif
 
 int32_t msm_led_torch_create_classdev(struct platform_device *pdev,
 				void *data)
 {
-	int rc;
-#ifdef CONFIG_MACH_SHENQI_K9
-	int i = 0;
-#endif
+	int32_t i, rc = 0;
 	struct msm_led_flash_ctrl_t *fctrl =
 		(struct msm_led_flash_ctrl_t *)data;
 
-#ifdef CONFIG_MACH_SHENQI_K9
 	if (!fctrl) {
 		pr_err("Invalid fctrl\n");
 		return -EINVAL;
@@ -89,21 +77,6 @@ int32_t msm_led_torch_create_classdev(struct platform_device *pdev,
 			return -EINVAL;
 		}
 	}
-#else
-	if (!fctrl || !fctrl->torch_trigger) {
-		pr_err("Invalid fctrl or torch trigger\n");
-		return -EINVAL;
-	}
-
-	torch_trigger = fctrl->torch_trigger;
-	msm_led_torch_brightness_set(&msm_torch_led, LED_OFF);
-
-	rc = led_classdev_register(&pdev->dev, &msm_torch_led);
-	if (rc) {
-		pr_err("Failed to register led dev. rc = %d\n", rc);
-		return rc;
-	}
-#endif
 
 	return 0;
 };
