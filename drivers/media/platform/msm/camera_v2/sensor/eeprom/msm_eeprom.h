@@ -44,19 +44,10 @@ struct msm_eeprom_ctrl_t {
 	uint8_t is_supported;
 	struct msm_eeprom_board_info *eboard_info;
 	uint32_t subdev_id;
-};
-
-#ifdef CONFIG_MACH_SHENQI_K9
-struct msm_eeprom_id_t {
-	uint32_t supplier_id;
-	uint32_t sensor_id;
-	const char *eeprom_name;
-};
-
-struct msm_sensor_module_id_name_map {
-	uint32_t supplier_id;
-	uint32_t sensor_id;
-	const char *sensor_module_name;
-};
+//Add by longxiaowu@camera 2015/09/15 to reduce the device bring up time
+#ifdef CONFIG_MACH_MSM8974_14001
+	struct work_struct read_work;
 #endif
+};
+
 #endif
